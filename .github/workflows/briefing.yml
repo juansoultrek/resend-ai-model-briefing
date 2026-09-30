@@ -1,0 +1,63 @@
+name: Send AI model briefing
+
+on:
+  workflow_dispatch:
+    inputs:
+      briefing_mode:
+        description: Briefing period
+        required: true
+        default: daily
+        type: choice
+        options:
+          - daily
+          - weekly
+  schedule:
+    - cron: "17 7 * * *"
+      timezone: America/Monterrey
+    - cron: "23 7 * * 1"
+      timezone: America/Monterrey
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-model-briefing-delivery
+  cancel-in-progress: false
+
+jobs:
+  deliver:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.schedule == '17 7 * * *' && vars.BRIEFING_MODE != 'weekly') ||
+      (github.event.schedule == '23 7 * * 1' && vars.BRIEFING_MODE == 'weekly')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-6-astra' }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      RESEND_FROM: ${{ secrets.RESEND_FROM }}
+      RESEND_SEGMENT_ID: ${{ secrets.RESEND_SEGMENT_ID }}
+      BRIEFING_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.briefing_mode || vars.BRIEFING_MODE || 'daily' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.19"
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install locked runtime dependencies
+        run: uv sync --locked --no-dev
+
+      - name: Validate configuration
+        run: uv run --locked --no-dev ai-model-briefing check
+
+      - name: Generate and send briefing
+        run: uv run --locked --no-dev ai-model-briefing run
