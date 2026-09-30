@@ -12,6 +12,7 @@ from ai_model_briefing.parsers import ParsedArticle
 
 MAX_SOURCE_RECORDS = 40
 MAX_SOURCE_PAYLOAD_CHARACTERS = 120_000
+MAX_OUTPUT_TOKENS = 5_000
 
 INSTRUCTIONS = """You create a concise English-language briefing about newly announced AI models.
 
@@ -92,6 +93,7 @@ def generate_briefing(
             input=payload,
             text_format=Briefing,
             store=False,
+            max_output_tokens=MAX_OUTPUT_TOKENS,
         )
     except OpenAIError as error:
         raise BriefingGenerationError("OpenAI could not generate the briefing") from error
@@ -159,6 +161,8 @@ def _validate_briefing(briefing: Briefing, allowed_urls: set[str]) -> None:
         or any(not value.strip() for value in text_fields)
     ):
         raise BriefingGenerationError("OpenAI returned incomplete briefing content")
+    if any(len(value) > 4_000 for value in text_fields) or len(briefing.subject) > 150:
+        raise BriefingGenerationError("OpenAI returned oversized briefing content")
 
     references: list[list[str]] = [briefing.recommendation.evidence_urls]
     references.extend(item.evidence_urls for item in briefing.top_news)

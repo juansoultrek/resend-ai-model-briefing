@@ -100,6 +100,7 @@ def test_generates_typed_stateless_briefing() -> None:
     assert result.recommendation.model == "Example Model"
     assert fake_client.responses.arguments["model"] == "test-model"
     assert fake_client.responses.arguments["store"] is False
+    assert fake_client.responses.arguments["max_output_tokens"] == 5_000
     assert fake_client.responses.arguments["text_format"] is Briefing
     assert "untrusted data" in fake_client.responses.arguments["instructions"]
     payload = json.loads(fake_client.responses.arguments["input"])
