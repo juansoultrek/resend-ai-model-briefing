@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import urlsplit
@@ -21,6 +22,7 @@ class Source(BaseModel):
     company: str = Field(min_length=1, max_length=100)
     type: Literal["rss", "sitemap", "html"]
     url: HttpUrl
+    allowed_hosts: tuple[str, ...] = ()
     include_paths: tuple[str, ...] = ()
     enabled: bool = True
     max_items: int = Field(default=10, ge=1, le=25)
@@ -32,10 +34,26 @@ class Source(BaseModel):
             raise ValueError("source URLs must use HTTPS")
         if parsed.username or parsed.password:
             raise ValueError("source URLs must not contain credentials")
+        if parsed.port not in (None, 443):
+            raise ValueError("source URLs must use the default HTTPS port")
+        primary_host = parsed.hostname or ""
+        allowed_hosts = self.allowed_hosts or (primary_host,)
+        if primary_host not in allowed_hosts:
+            raise ValueError("allowed hosts must include the source URL host")
+        if any(
+            not re.fullmatch(r"[a-z0-9.-]+", host) or host.startswith(".") or host.endswith(".")
+            for host in allowed_hosts
+        ):
+            raise ValueError("allowed hosts must contain valid lowercase hostnames")
         for path in self.include_paths:
             if not path.startswith("/") or ".." in path:
                 raise ValueError("include paths must be absolute and must not contain '..'")
         return self
+
+    @property
+    def effective_allowed_hosts(self) -> frozenset[str]:
+        primary_host = urlsplit(str(self.url)).hostname or ""
+        return frozenset(self.allowed_hosts or (primary_host,))
 
 
 class SourceCatalog(BaseModel):
