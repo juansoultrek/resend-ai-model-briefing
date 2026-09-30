@@ -12,10 +12,19 @@ from pydantic import ValidationError
 from ai_model_briefing import __version__
 from ai_model_briefing.briefing import BriefingGenerationError, generate_briefing
 from ai_model_briefing.collector import CollectionResult, collect_recent_articles
-from ai_model_briefing.config import load_generation_settings, load_settings
+from ai_model_briefing.config import (
+    load_generation_settings,
+    load_settings,
+    load_subscriber_settings,
+)
 from ai_model_briefing.delivery import DeliveryError, deliver_broadcast
 from ai_model_briefing.email import render_email
 from ai_model_briefing.sources import SourceConfigurationError, load_source_catalog
+from ai_model_briefing.subscribers import (
+    SubscriberError,
+    subscribe,
+    unsubscribe,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,6 +45,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="HTML file to write (default: briefing-preview.html).",
     )
     subparsers.add_parser("run", help="Generate and send a briefing with Resend.")
+    subscribe_parser = subparsers.add_parser(
+        "subscribe", help="Add a consenting contact to the configured Resend Segment."
+    )
+    subscribe_parser.add_argument("email", help="Contact email address.")
+    subscribe_parser.add_argument(
+        "--consent-confirmed",
+        action="store_true",
+        required=True,
+        help="Confirm that the contact explicitly agreed to receive this briefing.",
+    )
+    unsubscribe_parser = subparsers.add_parser(
+        "unsubscribe", help="Globally unsubscribe an existing Resend contact."
+    )
+    unsubscribe_parser.add_argument("email", help="Contact email address.")
     return parser
 
 
@@ -66,6 +89,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return execute_preview(arguments.output)
     if arguments.command == "run":
         return execute_run()
+    if arguments.command == "subscribe":
+        return execute_subscribe(arguments.email, arguments.consent_confirmed)
+    if arguments.command == "unsubscribe":
+        return execute_unsubscribe(arguments.email)
     parser.print_help()
     return 0
 
@@ -123,6 +150,41 @@ def execute_run() -> int:
         return 1
 
     print(f"Broadcast sent: {receipt.broadcast_id}")
+    return 0
+
+
+def execute_subscribe(email: str, consent_confirmed: bool) -> int:
+    try:
+        settings = load_subscriber_settings()
+        receipt = subscribe(
+            email,
+            api_key=settings.resend_api_key,
+            segment_id=settings.resend_segment_id,
+            consent_confirmed=consent_confirmed,
+        )
+    except ValidationError as error:
+        _print_configuration_error(error)
+        return 2
+    except SubscriberError as error:
+        print(f"Subscribe failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"Contact subscribed: {receipt.contact_id}")
+    return 0
+
+
+def execute_unsubscribe(email: str) -> int:
+    try:
+        settings = load_subscriber_settings()
+        receipt = unsubscribe(email, api_key=settings.resend_api_key)
+    except ValidationError as error:
+        _print_configuration_error(error)
+        return 2
+    except SubscriberError as error:
+        print(f"Unsubscribe failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"Contact unsubscribed: {receipt.contact_id}")
     return 0
 
 

@@ -8,6 +8,7 @@ from ai_model_briefing.collector import CollectionIssue, CollectionResult
 from ai_model_briefing.delivery import BroadcastReceipt
 from ai_model_briefing.email import RenderedEmail
 from ai_model_briefing.parsers import ParsedArticle
+from ai_model_briefing.subscribers import SubscriberReceipt
 
 
 def make_collection(*, with_issue: bool = False) -> CollectionResult:
@@ -36,6 +37,8 @@ def test_help_exits_successfully(capsys: pytest.CaptureFixture[str]) -> None:
     assert "deliver them with Resend" in output
     assert "preview" in output
     assert "run" in output
+    assert "subscribe" in output
+    assert "unsubscribe" in output
 
 
 def test_empty_command_exits_successfully() -> None:
@@ -137,3 +140,49 @@ def test_run_sends_generated_broadcast(
     assert "example-ai failed during listing_fetch" in captured.err
     assert "sk-secret-value" not in captured.out + captured.err
     assert "re_secret-value" not in captured.out + captured.err
+
+
+def test_subscribe_requires_consent_flag() -> None:
+    with pytest.raises(SystemExit) as error:
+        cli.main(["subscribe", "reader@example.com"])
+
+    assert error.value.code == 2
+
+
+def test_subscribe_only_requires_resend_contact_configuration(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    segment_id = uuid4()
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("RESEND_FROM", raising=False)
+    monkeypatch.setenv("RESEND_API_KEY", "re_secret-value")
+    monkeypatch.setenv("RESEND_SEGMENT_ID", str(segment_id))
+
+    def subscribe_contact(email, **kwargs):
+        assert email == "reader@example.com"
+        assert kwargs["segment_id"] == segment_id
+        assert kwargs["consent_confirmed"] is True
+        return SubscriberReceipt("contact-id", email, subscribed=True)
+
+    monkeypatch.setattr(cli, "subscribe", subscribe_contact)
+
+    assert cli.main(["subscribe", "reader@example.com", "--consent-confirmed"]) == 0
+    assert "Contact subscribed: contact-id" in capsys.readouterr().out
+
+
+def test_unsubscribe_only_requires_resend_contact_configuration(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("RESEND_FROM", raising=False)
+    monkeypatch.setenv("RESEND_API_KEY", "re_secret-value")
+    monkeypatch.setenv("RESEND_SEGMENT_ID", str(uuid4()))
+
+    monkeypatch.setattr(
+        cli,
+        "unsubscribe",
+        lambda email, **kwargs: SubscriberReceipt("contact-id", email, subscribed=False),
+    )
+
+    assert cli.main(["unsubscribe", "reader@example.com"]) == 0
+    assert "Contact unsubscribed: contact-id" in capsys.readouterr().out

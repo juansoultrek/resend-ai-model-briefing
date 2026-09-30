@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from email.utils import parseaddr
 from pathlib import Path
-from typing import Literal, Self
+from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -64,12 +64,22 @@ class Settings(GenerationSettings):
             raise ValueError("must contain a valid sender address")
         return value
 
-    @model_validator(mode="after")
-    def validate_resend_key(self) -> Self:
-        secret = self.resend_api_key.get_secret_value()
-        if secret != secret.strip() or not secret.startswith("re_"):
-            raise ValueError("RESEND_API_KEY must be an unpadded key starting with 're_'")
-        return self
+    @field_validator("resend_api_key")
+    @classmethod
+    def validate_resend_key(cls, value: SecretStr) -> SecretStr:
+        return _validate_resend_key(value)
+
+
+class SubscriberSettings(BaseSettings):
+    model_config = GenerationSettings.model_config
+
+    resend_api_key: SecretStr = Field(alias="RESEND_API_KEY", min_length=4)
+    resend_segment_id: UUID = Field(alias="RESEND_SEGMENT_ID")
+
+    @field_validator("resend_api_key")
+    @classmethod
+    def validate_resend_key(cls, value: SecretStr) -> SecretStr:
+        return _validate_resend_key(value)
 
 
 def load_settings() -> Settings:
@@ -78,3 +88,14 @@ def load_settings() -> Settings:
 
 def load_generation_settings() -> GenerationSettings:
     return GenerationSettings()  # type: ignore[call-arg]
+
+
+def load_subscriber_settings() -> SubscriberSettings:
+    return SubscriberSettings()  # type: ignore[call-arg]
+
+
+def _validate_resend_key(value: SecretStr) -> SecretStr:
+    secret = value.get_secret_value()
+    if secret != secret.strip() or not secret.startswith("re_"):
+        raise ValueError("RESEND_API_KEY must be an unpadded key starting with 're_'")
+    return value

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from threading import Lock
 from uuid import UUID
 
 import resend
@@ -10,9 +9,9 @@ from pydantic import SecretStr
 from resend.exceptions import NoContentError, ResendError
 
 from ai_model_briefing.email import UNSUBSCRIBE_URL, RenderedEmail
+from ai_model_briefing.resend_client import call_with_api_key
 
 BroadcastCreator = Callable[[resend.Broadcasts.CreateParams], resend.Broadcasts.CreateResponse]
-_RESEND_CONFIGURATION_LOCK = Lock()
 
 
 class DeliveryError(RuntimeError):
@@ -48,7 +47,7 @@ def deliver_broadcast(
     }
 
     try:
-        response = _create_with_scoped_api_key(api_key, params, creator)
+        response = call_with_api_key(api_key, lambda: creator(params))
     except (ResendError, NoContentError, ValueError) as error:
         raise DeliveryError("Resend could not create the broadcast") from error
 
@@ -56,17 +55,3 @@ def deliver_broadcast(
     if not broadcast_id:
         raise DeliveryError("Resend returned an invalid broadcast ID")
     return BroadcastReceipt(broadcast_id=broadcast_id, sent=send)
-
-
-def _create_with_scoped_api_key(
-    api_key: SecretStr,
-    params: resend.Broadcasts.CreateParams,
-    creator: BroadcastCreator,
-) -> resend.Broadcasts.CreateResponse:
-    with _RESEND_CONFIGURATION_LOCK:
-        previous_key = resend.api_key
-        resend.api_key = api_key.get_secret_value()
-        try:
-            return creator(params)
-        finally:
-            resend.api_key = previous_key
