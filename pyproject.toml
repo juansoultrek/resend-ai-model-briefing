@@ -15,6 +15,7 @@ dependencies = [
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
   "pyyaml>=6.0,<7",
+  "resend>=2,<3",
 ]
 
 [project.scripts]
