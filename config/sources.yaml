@@ -1,0 +1,37 @@
+version: 1
+sources:
+  - id: openai
+    company: OpenAI
+    type: rss
+    url: https://openai.com/news/rss.xml
+    include_paths: [/news/]
+
+  - id: anthropic
+    company: Anthropic
+    type: sitemap
+    url: https://www.anthropic.com/sitemap.xml
+    include_paths: [/news/, /research/]
+
+  - id: google-deepmind
+    company: Google DeepMind
+    type: rss
+    url: https://deepmind.google/blog/rss.xml
+    include_paths: [/blog/]
+
+  - id: meta-ai
+    company: Meta AI
+    type: html
+    url: https://ai.meta.com/blog/
+    include_paths: [/blog/]
+
+  - id: xai
+    company: xAI
+    type: html
+    url: https://x.ai/news
+    include_paths: [/news/]
+
+  - id: mistral
+    company: Mistral AI
+    type: rss
+    url: https://mistral.ai/news/rss
+    include_paths: [/news/]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from email.utils import parseaddr
+from pathlib import Path
 from typing import Literal, Self
 from uuid import UUID
 
@@ -25,6 +26,7 @@ class Settings(BaseSettings):
     resend_from: str = Field(alias="RESEND_FROM", min_length=3)
     resend_segment_id: UUID = Field(alias="RESEND_SEGMENT_ID")
     briefing_mode: Literal["daily", "weekly"] = Field(default="daily", alias="BRIEFING_MODE")
+    sources_file: Path = Field(default=Path("config/sources.yaml"), alias="SOURCES_FILE")
 
     @field_validator("openai_model", "resend_from")
     @classmethod

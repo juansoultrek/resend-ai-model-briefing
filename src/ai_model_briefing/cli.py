@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from ai_model_briefing import __version__
 from ai_model_briefing.config import load_settings
+from ai_model_briefing.sources import SourceConfigurationError, load_source_catalog
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -24,11 +25,15 @@ def build_parser() -> argparse.ArgumentParser:
 def check_configuration() -> int:
     try:
         settings = load_settings()
-    except ValidationError as error:
+        source_catalog = load_source_catalog(settings.sources_file)
+    except (ValidationError, SourceConfigurationError) as error:
         print("Configuration is invalid:", file=sys.stderr)
-        for issue in error.errors(include_url=False, include_input=False):
-            field = ".".join(str(part) for part in issue["loc"])
-            print(f"- {field}: {issue['msg']}", file=sys.stderr)
+        if isinstance(error, ValidationError):
+            for issue in error.errors(include_url=False, include_input=False):
+                field = ".".join(str(part) for part in issue["loc"])
+                print(f"- {field}: {issue['msg']}", file=sys.stderr)
+        else:
+            print(f"- sources: {error}", file=sys.stderr)
         return 2
 
     print("Configuration is valid.")
@@ -36,6 +41,8 @@ def check_configuration() -> int:
     print(f"Resend sender: {settings.resend_from}")
     print(f"Resend Segment: {settings.resend_segment_id}")
     print(f"Briefing mode: {settings.briefing_mode}")
+    enabled_sources = sum(source.enabled for source in source_catalog.sources)
+    print(f"News sources: {enabled_sources} enabled")
     return 0
 
 
