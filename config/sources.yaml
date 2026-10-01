@@ -4,7 +4,7 @@ sources:
     company: OpenAI
     type: rss
     url: https://openai.com/news/rss.xml
-    include_paths: [/news/]
+    include_paths: [/index/]
 
   - id: anthropic
     company: Anthropic
