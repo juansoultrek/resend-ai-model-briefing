@@ -85,6 +85,32 @@ def test_parses_html_index_and_deduplicates_links() -> None:
     assert articles[0].title == "Model Three"
 
 
+def test_parses_html_article_card_metadata() -> None:
+    source = Source.model_validate(
+        {
+            "id": "example-ai",
+            "company": "Example AI",
+            "type": "html",
+            "url": "https://example.com/releases",
+            "allowed_hosts": ["example.com", "models.example.com"],
+            "include_paths": ["/ExampleAI/"],
+        }
+    )
+    document = """
+    <article>
+      <span class="release-date">09/30/26</span>
+      <h3><a href="https://models.example.com/ExampleAI/model-five">Model Five</a></h3>
+      <p>A smaller reasoning model.</p>
+    </article>
+    """
+
+    articles = parse_html_index(document, source)
+
+    assert len(articles) == 1
+    assert articles[0].published_at == datetime(2026, 9, 30, tzinfo=UTC)
+    assert articles[0].summary == "A smaller reasoning model."
+
+
 def test_enriches_article_from_page_metadata() -> None:
     article = ParsedArticle(
         source_id="example-ai",

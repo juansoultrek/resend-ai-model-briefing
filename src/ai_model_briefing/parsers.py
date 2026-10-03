@@ -102,12 +102,15 @@ def parse_html_index(document: str, source: Source) -> tuple[ParsedArticle, ...]
         normalized_url = _normalize_article_url(urljoin(str(source.url), href), source)
         if not normalized_url:
             continue
+        container = anchor.find_parent("article")
         articles.append(
             ParsedArticle(
                 source_id=source.id,
                 company=source.company,
                 title=_clean_text(anchor.get_text(" "), MAX_TITLE_CHARACTERS),
                 url=normalized_url,
+                published_at=_article_card_date(container),
+                summary=_article_card_summary(container),
             )
         )
     return _deduplicate_and_limit(articles, source.max_items)
@@ -199,16 +202,53 @@ def _normalize_article_url(value: str, source: Source) -> str | None:
 def _parse_date(value: str) -> datetime | None:
     if not value:
         return None
+    parsed: datetime | None
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         try:
             parsed = parsedate_to_datetime(value)
         except (TypeError, ValueError, OverflowError):
-            return None
+            parsed = _parse_short_date(value)
+            if parsed is None:
+                return None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+
+def _parse_short_date(value: str) -> datetime | None:
+    for date_format in ("%m/%d/%y", "%m/%d/%Y"):
+        try:
+            return datetime.strptime(value, date_format).replace(tzinfo=UTC)
+        except ValueError:
+            continue
+    return None
+
+
+def _article_card_date(container: Tag | None) -> datetime | None:
+    if container is None:
+        return None
+    time_element = container.find("time")
+    if isinstance(time_element, Tag):
+        datetime_value = time_element.get("datetime")
+        if isinstance(datetime_value, str) and (parsed := _parse_date(datetime_value)):
+            return parsed
+        if parsed := _parse_date(time_element.get_text(" ", strip=True)):
+            return parsed
+    date_element = container.select_one('[class*="date"]')
+    if isinstance(date_element, Tag):
+        return _parse_date(date_element.get_text(" ", strip=True))
+    return None
+
+
+def _article_card_summary(container: Tag | None) -> str:
+    if container is None:
+        return ""
+    summary = container.find("p")
+    if not isinstance(summary, Tag):
+        return ""
+    return _clean_text(summary.get_text(" "), MAX_SUMMARY_CHARACTERS)
 
 
 def _clean_text(value: str, limit: int) -> str:
