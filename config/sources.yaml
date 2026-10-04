@@ -35,3 +35,10 @@ sources:
     type: rss
     url: https://mistral.ai/news/rss
     include_paths: [/news/]
+
+  - id: nous-research
+    company: Nous Research
+    type: html
+    url: https://nousresearch.com/releases
+    allowed_hosts: [nousresearch.com, huggingface.co]
+    include_paths: [/NousResearch/, /collections/NousResearch/]

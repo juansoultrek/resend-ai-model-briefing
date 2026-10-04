@@ -25,6 +25,7 @@ The default catalog is [`config/sources.yaml`](config/sources.yaml):
 | Meta AI | HTML index |
 | xAI | HTML index |
 | Mistral AI | RSS |
+| Nous Research | HTML releases |
 
 Sources can be enabled, disabled, or replaced without changing Python code.
 
