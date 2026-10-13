@@ -59,7 +59,7 @@ Fill in `.env`:
 
 ```dotenv
 OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-6-astra
+OPENAI_MODEL=gpt-6-luna
 RESEND_API_KEY=re_...
 RESEND_FROM=AI Model Briefing <briefing@your-domain.example>
 RESEND_SEGMENT_ID=00000000-0000-0000-0000-000000000000
@@ -128,7 +128,7 @@ Add these repository Actions secrets:
 
 Optional repository variables:
 
-- `OPENAI_MODEL` defaults to `gpt-6-astra`.
+- `OPENAI_MODEL` defaults to `gpt-6-luna` for a cost-efficient scheduled briefing.
 - `BRIEFING_MODE` defaults to `daily`; set it to `weekly` to use the Monday schedule.
 
 The scheduled workflow uses `America/Monterrey`. Change the cron expressions and timezone in

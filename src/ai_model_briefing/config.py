@@ -20,7 +20,7 @@ class GenerationSettings(BaseSettings):
 
     openai_api_key: SecretStr = Field(alias="OPENAI_API_KEY", min_length=4)
     openai_model: str = Field(
-        default="gpt-6-astra", alias="OPENAI_MODEL", min_length=1, max_length=100
+        default="gpt-6-luna", alias="OPENAI_MODEL", min_length=1, max_length=100
     )
     briefing_mode: Literal["daily", "weekly"] = Field(default="daily", alias="BRIEFING_MODE")
     sources_file: Path = Field(default=Path("config/sources.yaml"), alias="SOURCES_FILE")
