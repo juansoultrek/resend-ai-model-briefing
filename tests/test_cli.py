@@ -28,6 +28,10 @@ def make_collection(*, with_issue: bool = False) -> CollectionResult:
     )
 
 
+def make_empty_collection() -> CollectionResult:
+    return CollectionResult(articles=(), issues=())
+
+
 def test_help_exits_successfully(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as error:
         cli.main(["--help"])
@@ -110,6 +114,26 @@ def test_preview_generates_local_html_without_resend_configuration(
     assert "sk-secret-value" not in output
 
 
+def test_preview_skips_generation_when_no_news_is_found(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-secret-value")
+    monkeypatch.setattr(
+        cli, "collect_recent_articles", lambda catalog, mode: make_empty_collection()
+    )
+    monkeypatch.setattr(
+        cli,
+        "generate_briefing",
+        lambda *args, **kwargs: pytest.fail("OpenAI should not be called without news"),
+    )
+    output_path = tmp_path / "preview.html"
+
+    assert cli.main(["preview", "--output", str(output_path)]) == 0
+
+    assert not output_path.exists()
+    assert "No recent news found" in capsys.readouterr().out
+
+
 def test_run_sends_generated_broadcast(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -140,6 +164,32 @@ def test_run_sends_generated_broadcast(
     assert "example-ai failed during listing_fetch" in captured.err
     assert "sk-secret-value" not in captured.out + captured.err
     assert "re_secret-value" not in captured.out + captured.err
+
+
+def test_run_skips_openai_and_resend_when_no_news_is_found(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-secret-value")
+    monkeypatch.setenv("RESEND_API_KEY", "re_secret-value")
+    monkeypatch.setenv("RESEND_FROM", "Briefing <briefing@example.com>")
+    monkeypatch.setenv("RESEND_SEGMENT_ID", str(uuid4()))
+    monkeypatch.setattr(
+        cli, "collect_recent_articles", lambda catalog, mode: make_empty_collection()
+    )
+    monkeypatch.setattr(
+        cli,
+        "generate_briefing",
+        lambda *args, **kwargs: pytest.fail("OpenAI should not be called without news"),
+    )
+    monkeypatch.setattr(
+        cli,
+        "deliver_broadcast",
+        lambda *args, **kwargs: pytest.fail("Resend should not be called without news"),
+    )
+
+    assert cli.main(["run"]) == 0
+
+    assert "no broadcast was sent" in capsys.readouterr().out
 
 
 def test_subscribe_requires_consent_flag() -> None:

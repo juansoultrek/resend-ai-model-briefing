@@ -39,6 +39,9 @@ Sources can be enabled, disabled, or replaced without changing Python code.
 6. The content is HTML-escaped and delivered through a Resend Broadcast with Resend's managed
    unsubscribe URL.
 
+If no recent announcements are available, the run exits successfully without calling OpenAI or
+sending a Broadcast.
+
 ## Requirements
 
 - A Resend account with a verified sending domain and a Segment.

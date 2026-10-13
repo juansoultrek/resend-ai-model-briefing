@@ -103,6 +103,9 @@ def execute_preview(output_path: Path) -> int:
         catalog = load_source_catalog(settings.sources_file)
         collection = collect_recent_articles(catalog, settings.briefing_mode)
         _report_collection(collection)
+        if not collection.articles:
+            print("No recent news found; preview was not generated.")
+            return 0
         briefing = generate_briefing(
             collection.articles,
             settings.briefing_mode,
@@ -128,6 +131,9 @@ def execute_run() -> int:
         catalog = load_source_catalog(settings.sources_file)
         collection = collect_recent_articles(catalog, settings.briefing_mode)
         _report_collection(collection)
+        if not collection.articles:
+            print("No recent news found; no broadcast was sent.")
+            return 0
         briefing = generate_briefing(
             collection.articles,
             settings.briefing_mode,
