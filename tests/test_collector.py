@@ -152,6 +152,33 @@ def test_enriches_incomplete_listing_item() -> None:
     assert result.articles[0].content == "Full release."
 
 
+def test_limits_article_enrichment_per_source() -> None:
+    feed_items = "".join(
+        f"<item><link>https://example.com/news/model-{index}</link></item>" for index in range(6)
+    )
+    feed = f"<rss><channel>{feed_items}</channel></rss>"
+    page = """
+    <html><head><meta property="og:title" content="Model" />
+      <meta name="description" content="Release details." />
+      <meta property="article:published_time" content="2026-09-30T10:00:00Z" />
+    </head><body><article>Full release.</article></body></html>
+    """
+    responses = {
+        "https://example.com/feed": feed,
+        **{f"https://example.com/news/model-{index}": page for index in range(4)},
+    }
+
+    result = collect_recent_articles(
+        make_catalog(),
+        "daily",
+        now=NOW,
+        client_factory=make_factory(responses),
+    )
+
+    assert len(result.articles) == 4
+    assert result.issues == ()
+
+
 def test_source_failure_does_not_discard_other_sources() -> None:
     feed = """
     <rss><channel><item><title>Available</title>

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -21,6 +22,8 @@ WINDOWS: dict[BriefingMode, timedelta] = {
     "daily": timedelta(hours=36),
     "weekly": timedelta(days=8),
 }
+MAX_SOURCE_WORKERS = 4
+MAX_ARTICLE_ENRICHMENTS_PER_SOURCE = 4
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,10 +51,15 @@ def collect_recent_articles(
     collected: list[ParsedArticle] = []
     issues: list[CollectionIssue] = []
 
-    for source in catalog.sources:
-        if not source.enabled:
-            continue
-        articles, source_issues = _collect_source(source, factory, cutoff, reference_time)
+    enabled_sources = tuple(source for source in catalog.sources if source.enabled)
+    worker_count = min(MAX_SOURCE_WORKERS, len(enabled_sources))
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        source_results = executor.map(
+            lambda source: _collect_source(source, factory, cutoff, reference_time),
+            enabled_sources,
+        )
+
+    for articles, source_issues in source_results:
         issues.extend(source_issues)
         collected.extend(
             article
@@ -87,12 +95,16 @@ def _collect_source(
             return (), (CollectionIssue(source.id, "listing_parse"),)
 
         articles: list[ParsedArticle] = []
+        enrichment_count = 0
         for candidate in candidates:
             if _has_date_outside_window(candidate, cutoff, reference_time):
                 continue
             if not _needs_enrichment(candidate):
                 articles.append(candidate)
                 continue
+            if enrichment_count >= MAX_ARTICLE_ENRICHMENTS_PER_SOURCE:
+                continue
+            enrichment_count += 1
             try:
                 article_page = client.get_text(candidate.url)
             except SourceFetchError:
