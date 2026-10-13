@@ -23,6 +23,12 @@ def make_email(*, include_unsubscribe: bool = True) -> RenderedEmail:
     )
 
 
+def empty_lister(
+    params: resend.Broadcasts.ListParams | None = None,
+) -> resend.Broadcasts.ListResponse:
+    return {"object": "list", "data": [], "has_more": False}
+
+
 def test_creates_and_sends_broadcast_with_scoped_api_key() -> None:
     captured: dict[str, object] = {}
 
@@ -37,15 +43,17 @@ def test_creates_and_sends_broadcast_with_scoped_api_key() -> None:
         api_key=SecretStr("re_test"),
         from_address="Briefing <briefing@example.com>",
         segment_id=SEGMENT_ID,
+        delivery_key="ai-model-briefing:daily:2026-09-30",
         send=True,
         creator=creator,
+        lister=empty_lister,
     )
 
     assert receipt.broadcast_id == BROADCAST_ID
     assert receipt.sent is True
     assert captured["segment_id"] == str(SEGMENT_ID)
     assert captured["send"] is True
-    assert captured["name"] == "AI model briefing"
+    assert captured["name"] == "ai-model-briefing:daily:2026-09-30"
     assert UNSUBSCRIBE_URL in str(captured["html"])
     assert resend.api_key == original_key
 
@@ -60,8 +68,10 @@ def test_can_create_a_draft() -> None:
         api_key=SecretStr("re_test"),
         from_address="briefing@example.com",
         segment_id=SEGMENT_ID,
+        delivery_key="ai-model-briefing:daily:2026-09-30",
         send=False,
         creator=creator,
+        lister=empty_lister,
     )
 
     assert receipt.sent is False
@@ -74,7 +84,9 @@ def test_rejects_email_without_unsubscribe_link() -> None:
             api_key=SecretStr("re_test"),
             from_address="briefing@example.com",
             segment_id=SEGMENT_ID,
+            delivery_key="ai-model-briefing:daily:2026-09-30",
             send=True,
+            lister=empty_lister,
         )
 
 
@@ -89,8 +101,10 @@ def test_wraps_resend_errors_and_restores_api_key() -> None:
             api_key=SecretStr("re_test"),
             from_address="briefing@example.com",
             segment_id=SEGMENT_ID,
+            delivery_key="ai-model-briefing:daily:2026-09-30",
             send=True,
             creator=creator,
+            lister=empty_lister,
         )
     assert resend.api_key == original_key
 
@@ -105,6 +119,40 @@ def test_rejects_empty_broadcast_id() -> None:
             api_key=SecretStr("re_test"),
             from_address="briefing@example.com",
             segment_id=SEGMENT_ID,
+            delivery_key="ai-model-briefing:daily:2026-09-30",
             send=True,
             creator=creator,
+            lister=empty_lister,
         )
+
+
+def test_skips_a_duplicate_broadcast() -> None:
+    def lister(
+        params: resend.Broadcasts.ListParams | None = None,
+    ) -> resend.Broadcasts.ListResponse:
+        return {
+            "object": "list",
+            "data": [
+                {
+                    "id": BROADCAST_ID,
+                    "name": "ai-model-briefing:daily:2026-09-30",
+                    "segment_id": str(SEGMENT_ID),
+                }
+            ],
+            "has_more": False,
+        }  # type: ignore[return-value]
+
+    receipt = deliver_broadcast(
+        make_email(),
+        api_key=SecretStr("re_test"),
+        from_address="briefing@example.com",
+        segment_id=SEGMENT_ID,
+        delivery_key="ai-model-briefing:daily:2026-09-30",
+        send=True,
+        creator=lambda params: pytest.fail("duplicate broadcast must not be created"),
+        lister=lister,
+    )
+
+    assert receipt.broadcast_id == BROADCAST_ID
+    assert receipt.sent is False
+    assert receipt.duplicate is True

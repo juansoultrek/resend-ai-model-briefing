@@ -4,6 +4,7 @@ import argparse
 import os
 import sys
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -17,7 +18,11 @@ from ai_model_briefing.config import (
     load_settings,
     load_subscriber_settings,
 )
-from ai_model_briefing.delivery import DeliveryError, deliver_broadcast
+from ai_model_briefing.delivery import (
+    DeliveryError,
+    deliver_broadcast,
+    find_existing_broadcast,
+)
 from ai_model_briefing.email import render_email
 from ai_model_briefing.sources import SourceConfigurationError, load_source_catalog
 from ai_model_briefing.subscribers import (
@@ -128,6 +133,15 @@ def execute_preview(output_path: Path) -> int:
 def execute_run() -> int:
     try:
         settings = load_settings()
+        delivery_key = _build_delivery_key(settings.briefing_mode)
+        existing_id = find_existing_broadcast(
+            api_key=settings.resend_api_key,
+            segment_id=settings.resend_segment_id,
+            delivery_key=delivery_key,
+        )
+        if existing_id:
+            print(f"Broadcast already exists for this period: {existing_id}")
+            return 0
         catalog = load_source_catalog(settings.sources_file)
         collection = collect_recent_articles(catalog, settings.briefing_mode)
         _report_collection(collection)
@@ -146,6 +160,7 @@ def execute_run() -> int:
             api_key=settings.resend_api_key,
             from_address=settings.resend_from,
             segment_id=settings.resend_segment_id,
+            delivery_key=delivery_key,
             send=True,
         )
     except (ValidationError, SourceConfigurationError) as error:
@@ -155,7 +170,10 @@ def execute_run() -> int:
         print(f"Run failed: {error}", file=sys.stderr)
         return 1
 
-    print(f"Broadcast sent: {receipt.broadcast_id}")
+    if receipt.duplicate:
+        print(f"Broadcast already exists for this period: {receipt.broadcast_id}")
+    else:
+        print(f"Broadcast sent: {receipt.broadcast_id}")
     return 0
 
 
@@ -197,6 +215,16 @@ def execute_unsubscribe(email: str) -> int:
 def _report_collection(collection: CollectionResult) -> None:
     for issue in collection.issues:
         print(f"Warning: {issue.source_id} failed during {issue.stage}.", file=sys.stderr)
+
+
+def _build_delivery_key(mode: str, *, now: datetime | None = None) -> str:
+    reference_time = now or datetime.now(UTC)
+    if mode == "weekly":
+        iso_year, iso_week, _ = reference_time.isocalendar()
+        period = f"{iso_year}-W{iso_week:02d}"
+    else:
+        period = reference_time.date().isoformat()
+    return f"ai-model-briefing:{mode}:{period}"
 
 
 def _print_configuration_error(error: ValidationError | SourceConfigurationError) -> None:

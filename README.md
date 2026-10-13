@@ -136,8 +136,8 @@ Optional repository variables:
 
 The scheduled workflow uses `America/Monterrey`. Change the cron expressions and timezone in
 `.github/workflows/briefing.yml` for a different delivery time. Workflow concurrency prevents two
-deliveries from running at the same time, but manually rerunning a completed delivery can create a
-second Broadcast.
+deliveries from running at the same time. Before using OpenAI or creating a Broadcast, each run
+also checks Resend for the same daily date or weekly ISO week and skips a duplicate delivery.
 
 ## Customize sources
 

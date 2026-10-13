@@ -142,6 +142,7 @@ def test_run_sends_generated_broadcast(
     monkeypatch.setenv("RESEND_API_KEY", "re_secret-value")
     monkeypatch.setenv("RESEND_FROM", "Briefing <briefing@example.com>")
     monkeypatch.setenv("RESEND_SEGMENT_ID", str(segment_id))
+    monkeypatch.setattr(cli, "find_existing_broadcast", lambda **kwargs: None)
     monkeypatch.setattr(
         cli, "collect_recent_articles", lambda catalog, mode: make_collection(with_issue=True)
     )
@@ -173,6 +174,7 @@ def test_run_skips_openai_and_resend_when_no_news_is_found(
     monkeypatch.setenv("RESEND_API_KEY", "re_secret-value")
     monkeypatch.setenv("RESEND_FROM", "Briefing <briefing@example.com>")
     monkeypatch.setenv("RESEND_SEGMENT_ID", str(uuid4()))
+    monkeypatch.setattr(cli, "find_existing_broadcast", lambda **kwargs: None)
     monkeypatch.setattr(
         cli, "collect_recent_articles", lambda catalog, mode: make_empty_collection()
     )
@@ -190,6 +192,25 @@ def test_run_skips_openai_and_resend_when_no_news_is_found(
     assert cli.main(["run"]) == 0
 
     assert "no broadcast was sent" in capsys.readouterr().out
+
+
+def test_run_skips_a_previously_created_broadcast(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-secret-value")
+    monkeypatch.setenv("RESEND_API_KEY", "re_secret-value")
+    monkeypatch.setenv("RESEND_FROM", "Briefing <briefing@example.com>")
+    monkeypatch.setenv("RESEND_SEGMENT_ID", str(uuid4()))
+    monkeypatch.setattr(cli, "find_existing_broadcast", lambda **kwargs: "existing-id")
+    monkeypatch.setattr(
+        cli,
+        "collect_recent_articles",
+        lambda *args, **kwargs: pytest.fail("news should not be collected for a duplicate run"),
+    )
+
+    assert cli.main(["run"]) == 0
+
+    assert "already exists for this period: existing-id" in capsys.readouterr().out
 
 
 def test_subscribe_requires_consent_flag() -> None:
