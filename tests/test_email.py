@@ -4,7 +4,7 @@ from ai_model_briefing.briefing import (
     ModelRecommendation,
     NewsItem,
 )
-from ai_model_briefing.email import UNSUBSCRIBE_URL, render_email
+from ai_model_briefing.email import EMAIL_SUBJECT, UNSUBSCRIBE_URL, render_email
 
 SOURCE_URL = "https://example.com/news/model?edition=1&lang=en"
 
@@ -44,12 +44,21 @@ def make_briefing() -> Briefing:
 def test_renders_escaped_html_and_safe_subject() -> None:
     email = render_email(make_briefing())
 
-    assert email.subject == "AI model briefing Injected header"
+    assert email.subject == EMAIL_SUBJECT
     assert "\r" not in email.text
     assert "<script>" not in email.html
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in email.html
     assert "Today brought &lt;strong&gt;one&lt;/strong&gt; release." in email.html
     assert "edition=1&amp;lang=en" in email.html
+
+
+def test_renders_branded_email_layout() -> None:
+    email = render_email(make_briefing())
+
+    assert "AI Model Radar" in email.html
+    assert "Today's pick" in email.html
+    assert "Sent by juansoultrek.com · Built with Resend" in email.html
+    assert 'width="600"' in email.html
 
 
 def test_includes_resend_unsubscribe_placeholder_in_both_formats() -> None:
